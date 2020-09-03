@@ -1,7 +1,9 @@
 import numpy as np
 import itertools
 from collections.abc import Iterable
+
 import qiskit as qsk
+from qiskit import Aer
 
 # Errors
 class notSymmetricException(Exception):
@@ -137,4 +139,16 @@ class HLF(object):
 			if i%M < 1 : continue
 			elif hvec[i+M] :
 				self.quantumCircuit.cz(i, i-1)
-		# 
+		# 2-5. apply S for diagonal
+        for i hvec in enumerate(self.A) :
+            if hvec[i] :
+                self.quantumCircuit.s(i)
+        # 3. hadamard
+		self.quantumCircuit.h(self.quantumRegister)
+
+    def performStatevectorSim(self):
+        self.quantumCircuit = qsk.transpile(self.quantumCircuit)
+        backend_SV = Aer.get_backend('statevector_simulator')
+        job = qsk.execute(self.quantumCircuit, backend_SV)
+        probs = [abs(x)**2 for x in job.result().get_statevector(self.quantumCircuit)]
+        return probs
