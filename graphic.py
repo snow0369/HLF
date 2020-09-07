@@ -118,7 +118,7 @@ class visdomRequest(object):
 				raise invalidPointException((con[0][0], con[0][1]))
 			if not self.isInPoint(con[1][0], con[1][1]):
 				raise invalidPointException((con[1][0], con[1][1]))
-			if con in self.connections :
+			if con in self.connections or con[::-1] in self.connections:
 				print(f"{con} is already in the list.")
 				continue
 			if not self.isNeighbor(con) :
