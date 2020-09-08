@@ -148,7 +148,8 @@ class visdomRequest(object):
 			'marker': self.PointsStyle,
 			'type': 'scatter',
 			'mode': 'markers',
-			'name': 'qubit'
+			'name': 'qubit',
+			'showlegend' : False
 		}
 		dataSelectedPoints = {
 			'x': self.selectedPointsX,
@@ -156,7 +157,8 @@ class visdomRequest(object):
 			'marker': self.selectedPointsStyle,
 			'type': 'scatter',
 			'mode': 'markers',
-			'name': 'S_qubit'
+			'name': 'S_qubit',
+			'showlegend' : False
 		}
 		dataConnections = list()
 		for conn in self.connections : 
@@ -166,11 +168,12 @@ class visdomRequest(object):
 				'line':self.connectionsStyle,
 				'type':'line',
 				'mode':'lines',
-				'name': 'Conn'
+				'name': 'Conn',
+				'showlegend' : False
 			}
 			dataConnections.append(dataSingleConn)
 		data = [dataPoints, dataSelectedPoints] + dataConnections
-		opts = {}
+		opts = {'showlegend' : False}
 		self.vis._send({'data': data, 'win': self.win, 'eid': self.env, 'layout': self.globalLayout, 'opts': opts})
 '''
 class graphic(object):
