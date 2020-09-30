@@ -1,42 +1,22 @@
 import matplotlib.pyplot as plt
 from visdom import Visdom
 from collections.abc import Iterable
+from itertools import product
 
 #from QHLF import QHFL
 from HLFErrors import *
 
-class visdomRequest(object):
+class Graphic(object):
 	def __init__(self):
-		self.vis = Visdom()
-
-		self.win = 'HLF'
-		self.env = 'main'		
-		self.globalLayout = {
-			'xaxis': {'showgrid':False, 'showline':False, 'showticklabels':False},
-			'yaxis': {'showgrid':False, 'showline':False, 'showticklabels':False},
-		}
-
 		self.PointsX = list()
 		self.PointsY = list()
-		self.PointsStyle = {
-			'size' : 10,
-			'symbol' : 'dot',
-			'color' : '#e07b39',
-		}
-
+		self.PointsLabel = list()
 		self.selectedPointsX = list()
 		self.selectedPointsY = list()
-		self.selectedPointsStyle ={
-			'size' : 17,
-			'symbol' : 'dot',
-			'color' : '#ff0000',
-		}
 
+		self.emptyEdges = list()
+		self.EdgeLabel = list()
 		self.connections = list() # list of [[x0,y0],[x1,y1]]
-		self.connectionsStyle = {
-			'width': 3,
-			'color': '#0e699e',
-		}
 
 	def isInPoint(self, x, y):
 		try :
@@ -52,6 +32,9 @@ class visdomRequest(object):
 		except ValueError :
 			return False
 
+	def isInConnections(self, conn):
+		return conn in self.connections
+
 	def isNeighbor(self, conn):
 		x0 = conn[0][0]
 		y0 = conn[0][1]
@@ -62,20 +45,42 @@ class visdomRequest(object):
 	def clear(self):
 		self.PointsX = list()
 		self.PointsY = list()
+		self.PointsLabel = list()
 		self.selectedPointsX = list()
 		self.selectedPointsY = list()
+
+		self.emptyEdges = list()
+		self.EdgeLabel = list()
 		self.connections = list()
 		self.request()
 
 	def addPointWrapper(func):
-		def inner(self, x, y):
+		def inner(self, x, y, autoLabel, label):
 			ret = False
 			if isinstance(x, int) and isinstance(y, int):
 				ret = func(self, x, y)
+				if ret :
+					if autoLabel and len(self.PointsLabel) > 0 :
+						labelToAdd = max(self.PointsLabel)+1
+					elif autoLabel :
+						labelToAdd = 0
+					else : #manual label
+						labelToAdd = label
+					self.PointsLabel.append(labelToAdd)
 			elif isinstance(x, Iterable) and isinstance(y, Iterable):
 				if len(x)!=len(y) : 
 					raise invalidArgumentTypeException((x,y), "should be in same length")
 				ret = all([func(self, x[i], y[i]) for i in range(len(x))])
+				if ret :
+					if autoLabel and len(self.PointsLabel) > 0 :
+						labelToAdd = list(range(max(self.PointsLabel)+1, self.PointsLabel+1+len(x)))
+					elif autoLabel :
+						labelToAdd = list(range(len(x)))
+					else :
+						if len(x) != len(label):
+							raise invalidArgumentTypeException((x,label), "should be in same length")
+						labelToAdd = label
+					self.PointsLabel = self.PointsLabel + labelToAdd
 			self.request()
 			return ret
 		return inner
@@ -100,7 +105,7 @@ class visdomRequest(object):
 		self.selectedPointsY.append(y)
 		return True
 
-	def addPointAsGrid(self, M, N):
+	def addPointAsGrid(self, M, N, autoLabel=True, label=list()):
 		xListNotFlat = [[i]*N for i in range(M)]
 		xList = list()
 		for sub in xListNotFlat :
@@ -109,7 +114,12 @@ class visdomRequest(object):
 		yList = list()
 		for sub in yListNotFlat :
 			yList = yList + sub
-		self.addPoint(xList, yList)
+		self.addPoint(xList, yList, autoLabel, label)
+
+	def setEmptyEdges(self, edges, labels):
+		self.emptyEdges = edges
+		self.EdgeLabel = labels
+
 
 	def addConnections(self, conns):
 		# conns : array of [[x0,y0], [x1,y1]]
@@ -140,6 +150,55 @@ class visdomRequest(object):
 
 	def removePoint(self, x, y):
 		pass
+
+	def request(self):
+		raise NotImplementedError
+
+class matplotRequest(Graphic):
+	def __init__(self):
+		super(self)
+		plt.ion()
+		self.textBoxProp = dict(boxstyle='round', facecolor='white')
+		self.textBoxPropSelected = dict(boxstyle='round', facecolor='blue')
+
+	def request(self):
+		plt.clf()
+		# Draw Edges
+		for i in range(len(emptyEdges)) :
+			
+		# Draw nodes
+		for i in range(len(self.PointsX)):
+			x, y = self.PointsX[i], self.PointsY[i]
+			if self.isInSelectedPoint(x,y) :
+				prop = self.textBoxPropSelected
+			else :
+				prop = self.textBoxProp
+			plt.text(self.PointsX[i], self.PointsY[i], str(self.PointsLabel[i]), bbox=prop)
+
+class visdomRequest(Graphic)
+	def __init__(self):
+		super(self)
+		self.vis = Visdom()
+		self.win = 'HLF'
+		self.env = 'main'		
+		self.globalLayout = {
+			'xaxis': {'showgrid':False, 'showline':False, 'showticklabels':False},
+			'yaxis': {'showgrid':False, 'showline':False, 'showticklabels':False},
+		}
+		self.PointsStyle = {
+			'size' : 10,
+			'symbol' : 'dot',
+			'color' : '#e07b39',
+		}
+		self.selectedPointsStyle ={
+			'size' : 17,
+			'symbol' : 'dot',
+			'color' : '#ff0000',
+		}
+		self.connectionsStyle = {
+			'width': 3,
+			'color': '#0e699e',
+		}
 
 	def request(self):
 		dataPoints = {
@@ -175,6 +234,8 @@ class visdomRequest(object):
 		data = [dataPoints, dataSelectedPoints] + dataConnections
 		opts = {'showlegend' : False}
 		self.vis._send({'data': data, 'win': self.win, 'eid': self.env, 'layout': self.globalLayout, 'opts': opts})
+
+
 '''
 class graphic(object):
 	def __init__(self, bind):

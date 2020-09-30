@@ -5,12 +5,17 @@ from collections.abc import Iterable
 import qiskit as qsk
 from qiskit import Aer
 
-from graphic import visdomRequest
+from graphic import visdomRequest, matplotRequest
 from HLFErrors import *
 
 class QHLF(object):
-	def __init__(self, qubitDim=None, A=None):
-		self.vizRequest = visdomRequest()
+	def __init__(self, qubitDim=None, A=None, enableViz=False, enableMatplot=False):
+		self.enableViz = enableViz
+		self.enableMatplot = enableMatplot
+		if self.enableViz :
+			self.vizRequest = visdomRequest()
+		if self.enableMatplot :
+			self.matplotRequest = matplotRequest()
 		if qubitDim == None and A == None :
 			raise emptyInputException()
 		elif qubitDim == None :
@@ -19,13 +24,15 @@ class QHLF(object):
 			else :
 				self.A = A
 			self.qubitDim = self.AtoQubitArr()
-			self.vizRequest.addPointAsGrid(self.qubitDim[0],self.qubitDim[1])
+			if self.enableViz :
+				self.vizRequest.addPointAsGrid(self.qubitDim[0],self.qubitDim[1],True)
 			self.numQubits = self.A.shape[0]
 		elif A == None : 
 			self.qubitDim = qubitDim
 			self.A = np.zeros((qubitDim[0]*qubitDim[1], qubitDim[0]*qubitDim[1]), dtype=bool)
 			self.numQubits = self.qubitDim[0] * self.qubitDim[1]
-			self.vizRequest.addPointAsGrid(self.qubitDim[0],self.qubitDim[1])
+			if self.enableViz :
+				self.vizRequest.addPointAsGrid(self.qubitDim[0],self.qubitDim[1],True)
 		else : 
 			raise fullInputException()
 		self.quantumCircuit = None
@@ -59,10 +66,11 @@ class QHLF(object):
 				if self.A[i][j] :
 					xj, yj = self.qubitIdxToGrid(j)
 					connection.append([[xi, yi],[xj, yj]])
-		self.vizRequest.clear()
-		self.vizRequest.addPointAsGrid(self.qubitDim[0], self.qubitDim[1])
-		self.vizRequest.addSelectPoint(selectedX, selectedY)
-		self.vizRequest.addConnections(connection)
+		if self.enableViz :
+			self.vizRequest.clear()
+			self.vizRequest.addPointAsGrid(self.qubitDim[0], self.qubitDim[1],True)
+			self.vizRequest.addSelectPoint(selectedX, selectedY)
+			self.vizRequest.addConnections(connection)
 
 	@validityCheck
 	def reduceAmat(self):
