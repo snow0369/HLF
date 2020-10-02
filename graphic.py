@@ -160,12 +160,15 @@ class matplotRequest(Graphic):
 		plt.ion()
 		self.textBoxProp = dict(boxstyle='round', facecolor='white')
 		self.textBoxPropSelected = dict(boxstyle='round', facecolor='blue')
-
+		self.emptyEdgeStyle = dict(linestyle='dashed', linewidth=4)
+		self.connectedEdgeStyle = dict(linewidth=4)
 	def request(self):
 		plt.clf()
 		# Draw Edges
-		for i in range(len(emptyEdges)) :
-			
+		for i in range(len(self.emptyEdges)) :
+			plt.plot([self.emptyEdges[i][0][0], self.emptyEdges[i][1][0]], [self.emptyEdges[i][0][1], self.emptyEdges[i][1][1]], **self.emptyEdgeStyle)
+		for i in range(len(self.connections))
+			plt.plot([self.connection[i][0][0], self.connection[i][1][0]], [self.connection[i][0][1], self.connection[i][1][1]], **self.connectedEdgeStyle)
 		# Draw nodes
 		for i in range(len(self.PointsX)):
 			x, y = self.PointsX[i], self.PointsY[i]
