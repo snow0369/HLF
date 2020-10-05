@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+
+import numpy as np
 from visdom import Visdom
 from collections.abc import Iterable
 from itertools import product
@@ -11,11 +13,13 @@ class Graphic(object):
 		self.PointsX = list()
 		self.PointsY = list()
 		self.PointsLabel = list()
-		self.selectedPointsX = list()
-		self.selectedPointsY = list()
+		self.selectedPoints1X = list()
+		self.selectedPoints1Y = list()
+		self.selectedPoints2X = list()
+		self.selectedPoints2Y = list()
 
 		self.emptyEdges = list()
-		self.EdgeLabel = list()
+		self.edgeLabel = dict()
 		self.connections = list() # list of [[x0,y0],[x1,y1]]
 
 	def isInPoint(self, x, y):
@@ -25,10 +29,14 @@ class Graphic(object):
 		except ValueError :
 			return False
 
-	def isInSelectedPoint(self, x, y):
+	def isInSelectedPoint(self, x, y, l):
+		if not l in [1,2] : 
+			raise ValueError
+		selectedX = self.selectedPoints1X if l==1 else self.selectedPoints2X
+		selectedY = self.selectedPoints1Y if l==1 else self.selectedPoints2Y
 		try :
-			idxList = [i for i in range(len(self.selectedPointsX)) if self.selectedPointsX[i]==x]
-			return any([self.selectedPointsY[i]==y for i in idxList])
+			idxList = [i for i in range(len(selectedX)) if selectedX[i]==x]
+			return any([selectedY[i]==y for i in idxList])
 		except ValueError :
 			return False
 
@@ -46,19 +54,21 @@ class Graphic(object):
 		self.PointsX = list()
 		self.PointsY = list()
 		self.PointsLabel = list()
-		self.selectedPointsX = list()
-		self.selectedPointsY = list()
+		self.selectedPoints1X = list()
+		self.selectedPoints1Y = list()
+		self.selectedPoints2X = list()
+		self.selectedPoints2Y = list()
 
 		self.emptyEdges = list()
-		self.EdgeLabel = list()
+		self.edgeLabel = dict()
 		self.connections = list()
-		self.request()
+		#self.request()
 
 	def addPointWrapper(func):
-		def inner(self, x, y, autoLabel, label):
+		def inner(self, x, y, autoLabel=True, label=list(), l=1):
 			ret = False
 			if isinstance(x, int) and isinstance(y, int):
-				ret = func(self, x, y)
+				ret = func(self, x, y, l)
 				if ret :
 					if autoLabel and len(self.PointsLabel) > 0 :
 						labelToAdd = max(self.PointsLabel)+1
@@ -70,10 +80,10 @@ class Graphic(object):
 			elif isinstance(x, Iterable) and isinstance(y, Iterable):
 				if len(x)!=len(y) : 
 					raise invalidArgumentTypeException((x,y), "should be in same length")
-				ret = all([func(self, x[i], y[i]) for i in range(len(x))])
+				ret = all([func(self, x[i], y[i], l) for i in range(len(x))])
 				if ret :
 					if autoLabel and len(self.PointsLabel) > 0 :
-						labelToAdd = list(range(max(self.PointsLabel)+1, self.PointsLabel+1+len(x)))
+						labelToAdd = list(range(max(self.PointsLabel)+1, max(self.PointsLabel)+1+len(x)))
 					elif autoLabel :
 						labelToAdd = list(range(len(x)))
 					else :
@@ -81,12 +91,12 @@ class Graphic(object):
 							raise invalidArgumentTypeException((x,label), "should be in same length")
 						labelToAdd = label
 					self.PointsLabel = self.PointsLabel + labelToAdd
-			self.request()
+			#self.request()
 			return ret
 		return inner
 
 	@addPointWrapper
-	def addPoint(self, x, y):
+	def addPoint(self, x, y, _):
 		if self.isInPoint(x,y):
 			print(f"({x}, {y}) already exists")
 			return True
@@ -95,30 +105,35 @@ class Graphic(object):
 		return True
 
 	@addPointWrapper
-	def addSelectPoint(self, x, y):
+	def addSelectPoint(self, x, y, l):
 		if not self.isInPoint(x,y):
 			raise invalidPointException((x,y))
-		if self.isInSelectedPoint(x,y):
+		if self.isInSelectedPoint(x,y,l):
 			print(f"({x}, {y}) already exists")
 			return True
-		self.selectedPointsX.append(x)
-		self.selectedPointsY.append(y)
+		if l == 1 :
+			self.selectedPoints1X.append(x)
+			self.selectedPoints1Y.append(y)
+		elif l == 2 :
+			self.selectedPoints2X.append(x)
+			self.selectedPoints2Y.append(y)
+		else :
+			raise ValueError
 		return True
 
 	def addPointAsGrid(self, M, N, autoLabel=True, label=list()):
-		xListNotFlat = [[i]*N for i in range(M)]
-		xList = list()
-		for sub in xListNotFlat :
-			xList = xList + sub
-		yListNotFlat = [list(range(N))]*M
-		yList = list()
-		for sub in yListNotFlat :
-			yList = yList + sub
+		xList = np.arange(M)
+		yList = np.arange(N)
+		yxList = list(product(yList, xList))
+		xList = [k[1] for k in yxList]
+		yList = [k[0] for k in yxList]
 		self.addPoint(xList, yList, autoLabel, label)
 
 	def setEmptyEdges(self, edges, labels):
+		#print("Called")
+		#print(edges)
 		self.emptyEdges = edges
-		self.EdgeLabel = labels
+		self.edgeLabel = labels
 
 
 	def addConnections(self, conns):
@@ -133,17 +148,22 @@ class Graphic(object):
 				continue
 			if not self.isNeighbor(con) :
 				raise notNeighborException(con[0], con[1])
+			con = tuple((tuple(con[0]), tuple(con[1])))
 			self.connections.append(con)
-		self.request()
+		#self.request()
 
-	def removeSelectedPoint(self, x, y):
-		if not self.isInSelectedPoint(x,y):
+	def removeSelectedPoint(self, x, y, l):
+		if not l in [1,2] : 
+			raise ValueError
+		selectedX = self.selectedPoints1X if l==1 else self.selectedPoints2X
+		selectedY = self.selectedPoints1Y if l==1 else self.selectedPoints2Y
+		if not self.isInSelectedPoint(x,y,l):
 			print(f"point ({x}, {y}) is not selected.")
 			return True
-		idxList = [i for i in range(len(self.selectedPointsX)) if self.selectedPointsX[i]==x]
-		idx = [self.selectedPointsY[i]==y for i in idxList][0]
-		del self.selectedPointsX[idx]
-		del self.selectedPointsY[idx]
+		idxList = [i for i in range(len(selectedX)) if selectedX[i]==x]
+		idx = [selectedY[i]==y for i in idxList][0]
+		del selectedX[idx]
+		del selectedY[idx]
 
 	def removeConnection(self, conRm):
 		pass
@@ -156,31 +176,68 @@ class Graphic(object):
 
 class matplotRequest(Graphic):
 	def __init__(self):
-		super(self)
+		super().__init__()
 		plt.ion()
 		self.textBoxProp = dict(boxstyle='round', facecolor='white')
-		self.textBoxPropSelected = dict(boxstyle='round', facecolor='blue')
-		self.emptyEdgeStyle = dict(linestyle='dashed', linewidth=4)
-		self.connectedEdgeStyle = dict(linewidth=4)
+		self.textBoxPropSelected1 = dict(boxstyle='round', facecolor='cyan')
+		self.textBoxPropSelected2 = dict(boxstyle='round', facecolor='greenyellow')
+		self.textBoxPropSelected12 = dict(boxstyle='round', facecolor='orchid')
+		self.emptyEdgeStyle = dict(linestyle='dotted', linewidth=1)
+		self.connectedEdgeStyle = dict(linestyle='solid', linewidth=2)
+		self.edgeColor = 'rbmc'
+
+	def midPoint(self, p1, p2):
+		return (0.5*(p1[0]+p2[0]), 0.5*(p1[1]+p2[1]))
+
 	def request(self):
+		#print(self.PointsLabel)
+		#print(self.PointsX)
+		#print(self.PointsY)
+		#print(self.emptyEdges)
+		#print(self.edgeLabel)
+		#print(self.selectedPoints1X)
+		#print(self.selectedPoints2X)
+		#print(self.connections)
 		plt.clf()
+		if len(self.PointsX) > 0 and len(self.PointsY) > 0 :
+			plt.xlim(min(self.PointsX)-0.5, max(self.PointsX)+0.5)
+			plt.ylim(min(self.PointsY)-0.5, max(self.PointsY)+0.5)
+		plt.axis('off')
 		# Draw Edges
 		for i in range(len(self.emptyEdges)) :
-			plt.plot([self.emptyEdges[i][0][0], self.emptyEdges[i][1][0]], [self.emptyEdges[i][0][1], self.emptyEdges[i][1][1]], **self.emptyEdgeStyle)
-		for i in range(len(self.connections))
-			plt.plot([self.connection[i][0][0], self.connection[i][1][0]], [self.connection[i][0][1], self.connection[i][1][1]], **self.connectedEdgeStyle)
+			mp = self.midPoint(self.emptyEdges[i][0], self.emptyEdges[i][1])
+			txt = self.edgeLabel[i]
+			cIdx = (ord(txt[0])-ord('a'))%4
+			color = self.edgeColor[cIdx]
+			if self.emptyEdges[i] in self.connections :
+				prop = self.connectedEdgeStyle
+			else :
+				prop = self.emptyEdgeStyle
+			plt.plot([self.emptyEdges[i][0][0], self.emptyEdges[i][1][0]], [self.emptyEdges[i][0][1], self.emptyEdges[i][1][1]], color=color, **prop)
+			if txt[0] in ['a', 'c'] :
+				plt.text(mp[0], mp[1]+0.1, txt)
+			else :
+				plt.text(mp[0]+0.05, mp[1], txt)
 		# Draw nodes
 		for i in range(len(self.PointsX)):
 			x, y = self.PointsX[i], self.PointsY[i]
-			if self.isInSelectedPoint(x,y) :
-				prop = self.textBoxPropSelected
+			sel1 = self.isInSelectedPoint(x,y,1)
+			sel2 = self.isInSelectedPoint(x,y,2)
+			if sel1 and sel2 :
+				prop = self.textBoxPropSelected12
+			elif sel1 :
+				prop = self.textBoxPropSelected1
+			elif sel2 :
+				prop = self.textBoxPropSelected2
 			else :
 				prop = self.textBoxProp
 			plt.text(self.PointsX[i], self.PointsY[i], str(self.PointsLabel[i]), bbox=prop)
+		plt.show()
+		plt.pause(0.01)
 
-class visdomRequest(Graphic)
+class visdomRequest(Graphic):
 	def __init__(self):
-		super(self)
+		super().__init__()
 		self.vis = Visdom()
 		self.win = 'HLF'
 		self.env = 'main'		
@@ -214,8 +271,8 @@ class visdomRequest(Graphic)
 			'showlegend' : False
 		}
 		dataSelectedPoints = {
-			'x': self.selectedPointsX,
-			'y': self.selectedPointsY,
+			'x': self.selectedPoints2X,
+			'y': self.selectedPoints2Y,
 			'marker': self.selectedPointsStyle,
 			'type': 'scatter',
 			'mode': 'markers',
